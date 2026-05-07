@@ -48,6 +48,8 @@ test('payment creation validates provider and status retry', () => {
   assert.equal(dep.status, 'pending_approval');
   assert.equal(retryableStatus('timeout'), true);
   assert.equal(retryableStatus('completed'), false);
+  assert.throws(() => createDeposit({ provider: 'xendit', method: 'gcash', amount: 'abc', userId: 'u1' }), /Amount/);
+  assert.throws(() => createDeposit({ provider: 'xendit', method: 'gcash', amount: 100, userId: '' }), /userId/);
 });
 
 test('webhook signatures are HMAC validated in timing-safe form', () => {
@@ -55,7 +57,8 @@ test('webhook signatures are HMAC validated in timing-safe form', () => {
   const secret = 'webhook-secret';
   const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   assert.equal(validateWebhookSignature({ payload, signature: `sha256=${expected}`, secret }), true);
-  assert.equal(validateWebhookSignature({ payload, signature: expected.slice(2), secret }), false);
+  assert.equal(validateWebhookSignature({ payload, signature: expected, secret }), false);
+  assert.equal(validateWebhookSignature({ payload: { id: 'evt_1' }, signature: `sha256=${expected}`, secret }), false);
 });
 
 test('jackpot events are capped to prevent unbounded growth', () => {

@@ -3,8 +3,8 @@ module.exports = {
     {
       name: 'scaterx-api',
       script: 'apps/api/src/server.js',
-      instances: 2,
-      exec_mode: 'cluster'
+      instances: 1,
+      exec_mode: 'fork'
     }
   ]
 };

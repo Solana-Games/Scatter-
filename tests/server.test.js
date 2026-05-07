@@ -44,3 +44,13 @@ test('oversized payload returns 413', async () => {
   });
   assert.equal(response.status, 413);
 });
+
+test('spin rejects invalid stake', async () => {
+  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
+  const response = await fetch(`${baseUrl}/provably-fair/spin`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ clientSeed: 'seed', nonce: 1, stake: -5 })
+  });
+  assert.equal(response.status, 400);
+});

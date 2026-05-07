@@ -6,4 +6,4 @@ for (const folder of required) {
     throw new Error(`Missing required folder: ${folder}`);
   }
 }
-console.log('Build structure check passed.');
+console.log('Structure check passed.');

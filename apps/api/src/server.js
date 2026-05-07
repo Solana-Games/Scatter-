@@ -1,4 +1,5 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { createSpinOutcome, generateServerSeed, hashServerSeed, verifyOutcome } from './provablyFair.js';
 import { createDeposit } from './payments.js';
 import { JackpotPool } from './jackpot.js';
@@ -8,6 +9,13 @@ const jackpot = new JackpotPool();
 let activeServerSeed = generateServerSeed();
 const seedAuditChain = [hashServerSeed(activeServerSeed)];
 const seedHash = () => hashServerSeed(activeServerSeed);
+
+function timingSafeStringEqual(left, right) {
+  const leftBuffer = Buffer.from(left, 'utf8');
+  const rightBuffer = Buffer.from(right, 'utf8');
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -54,7 +62,9 @@ function json(res, code, payload) {
 function isAdminAuthorized(req) {
   const adminToken = process.env.ADMIN_API_TOKEN;
   if (!adminToken) return false;
-  return req.headers['x-admin-token'] === adminToken;
+  const headerToken = req.headers['x-admin-token'];
+  if (Array.isArray(headerToken) || typeof headerToken !== 'string') return false;
+  return timingSafeStringEqual(headerToken.trim(), adminToken.trim());
 }
 
 function parseBodyOrReply(req, res) {
@@ -85,7 +95,11 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       return json(res, 400, { error: error.message });
     }
-    jackpot.contribute(Number(body.stake ?? 10));
+    const stake = Number(body.stake ?? 10);
+    if (!Number.isFinite(stake) || stake <= 0) {
+      return json(res, 400, { error: 'stake must be a positive number' });
+    }
+    jackpot.contribute(stake);
     return json(res, 200, { ...outcome, jackpot: jackpot.amount, serverSeedHash: seedHash(), seedVersion: seedAuditChain.length });
   }
 

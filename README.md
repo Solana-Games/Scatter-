@@ -15,8 +15,8 @@ SCATERX is a production-oriented cyberpunk crypto casino foundation repository d
 
 ```bash
 npm test
-npm run lint:check
-npm run build:check
+npm run verify:metadata
+npm run verify:structure
 npm run start:api
 ```
 
@@ -36,6 +36,7 @@ npm run start:api
 - Client seeds are normalized and capped to 64 characters for deterministic hashing.
 - Input validation on payment and RNG routes.
 - Seed rotation includes versioned hash chaining in-process (persist to storage for multi-instance production use).
+- API runtime state is in-memory; deploy as a single API replica/instance unless shared state storage is added.
 
 ## Testing
 

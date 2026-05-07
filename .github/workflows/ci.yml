@@ -16,5 +16,5 @@ jobs:
         with:
           node-version: 20
       - run: npm test
-      - run: npm run lint:check
-      - run: npm run build:check
+      - run: npm run verify:metadata
+      - run: npm run verify:structure

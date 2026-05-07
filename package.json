@@ -4,16 +4,12 @@
   "private": true,
   "description": "SCATERX cyberpunk crypto casino platform",
   "type": "module",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "build": "npm run build:check",
-    "lint": "npm run lint:check",
-    "build:check": "node scripts/build-check.mjs",
-    "lint:check": "node scripts/lint-check.mjs",
-    "test": "node --test tests/*.test.js",
+    "build": "npm run verify:structure",
+    "lint": "npm run verify:metadata",
+    "verify:structure": "node scripts/structure-check.mjs",
+    "verify:metadata": "node scripts/metadata-check.mjs",
+    "test": "node --test tests",
     "start:api": "node apps/api/src/server.js"
   },
   "engines": {
