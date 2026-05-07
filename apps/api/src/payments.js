@@ -56,10 +56,12 @@ export function choosePaymentProvider({ method, preferredProvider, health = {} }
   if (!METHODS.has(method)) throw new Error('Unsupported payment method');
   const availableProviders = [...PROVIDERS].filter((provider) => PROVIDER_METHODS[provider].has(method));
   if (!availableProviders.length) throw new Error('No provider available for method');
-  if (preferredProvider && availableProviders.includes(preferredProvider) && health[preferredProvider] !== 'down') {
+  const onlineProviders = availableProviders.filter((provider) => health[provider] !== 'down');
+  if (!onlineProviders.length) throw new Error('No healthy provider available for method');
+  if (preferredProvider && onlineProviders.includes(preferredProvider)) {
     return preferredProvider;
   }
-  const ranked = [...availableProviders].sort((left, right) => {
+  const ranked = [...onlineProviders].sort((left, right) => {
     const leftScore = health[left] === 'healthy' ? 2 : health[left] === 'degraded' ? 1 : 0;
     const rightScore = health[right] === 'healthy' ? 2 : health[right] === 'degraded' ? 1 : 0;
     return rightScore - leftScore;

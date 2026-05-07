@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 
 const MAX_CLIENT_SEED_LENGTH = 64;
+const DEFAULT_RATE_LIMITER_CLEANUP_EVERY = 100;
+const MAX_TOKEN_TTL_SEC = 86_400;
 
 export class NonceGuard {
   constructor(windowSize = 1000) {
@@ -28,10 +30,29 @@ export class RateLimiter {
     this.max = max;
     this.intervalMs = intervalMs;
     this.hits = new Map();
+    this.checkCount = 0;
+    this.cleanupEvery = DEFAULT_RATE_LIMITER_CLEANUP_EVERY;
+  }
+
+  pruneStale(now = Date.now()) {
+    for (const [identity, timestamps] of this.hits.entries()) {
+      if (!Array.isArray(timestamps) || timestamps.length === 0) {
+        this.hits.delete(identity);
+        continue;
+      }
+      const latest = timestamps[timestamps.length - 1];
+      if (now - latest >= this.intervalMs) {
+        this.hits.delete(identity);
+      }
+    }
   }
 
   check(identity) {
     const now = Date.now();
+    this.checkCount += 1;
+    if (this.checkCount % this.cleanupEvery === 0) {
+      this.pruneStale(now);
+    }
     const key = String(identity ?? 'unknown');
     const bucket = this.hits.get(key) ?? [];
     const fresh = bucket.filter((timestamp) => now - timestamp < this.intervalMs);
@@ -66,6 +87,9 @@ export class AutoSpinGuard {
 export function issueRotatingToken({ subject, secret, ttlSec = 900, version = 1 }) {
   if (!subject) throw new Error('subject is required');
   if (!secret) throw new Error('secret is required');
+  if (!Number.isInteger(ttlSec) || ttlSec <= 0 || ttlSec > MAX_TOKEN_TTL_SEC) {
+    throw new Error(`ttlSec must be an integer between 1 and ${MAX_TOKEN_TTL_SEC}`);
+  }
   const issuedAt = Math.floor(Date.now() / 1000);
   const expiresAt = issuedAt + ttlSec;
   const body = `${subject}:${issuedAt}:${expiresAt}:${version}`;

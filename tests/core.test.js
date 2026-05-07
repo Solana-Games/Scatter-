@@ -26,6 +26,7 @@ import {
   validateWebhookSignature
 } from '../apps/api/src/payments.js';
 import { JackpotPool } from '../apps/api/src/jackpot.js';
+import { issueRotatingToken, RateLimiter } from '../apps/api/src/security.js';
 
 test('RTP estimator calculates expected return', () => {
   const spins = [
@@ -119,6 +120,24 @@ test('weighted matrix and simulation produce deterministic RTP analytics', () =>
   const audit = auditRtpProfile({ profile, paytable: { A: 0.8, B: 1.2, C: 2.5, WILD: 8 }, spins: 2000 });
   assert.equal(audit.profileId, 'sim-medium');
   assert.ok(Number.isFinite(audit.rtpDrift));
+
+  const betMultiplier = 3;
+  const multiBetSimulation = simulateRtpSpins({
+    profile,
+    paytable: { A: 0.8, B: 1.2, C: 2.5, WILD: 8 },
+    spins: 1000,
+    bet: betMultiplier,
+    seed: 'multi-bet'
+  });
+  const singleBetSimulation = simulateRtpSpins({
+    profile,
+    paytable: { A: 0.8, B: 1.2, C: 2.5, WILD: 8 },
+    spins: 1000,
+    bet: 1,
+    seed: 'multi-bet'
+  });
+  assert.equal(multiBetSimulation.outcomes[0].payout, Number((singleBetSimulation.outcomes[0].payout * betMultiplier).toFixed(4)));
+  assert.equal(multiBetSimulation.rtp, singleBetSimulation.rtp);
 });
 
 test('payment failover, withdrawal approval, fraud scoring, and reconciliation work', () => {
@@ -162,4 +181,23 @@ test('payment failover, withdrawal approval, fraud scoring, and reconciliation w
   assert.equal(report.summary.matched, 1);
   assert.equal(report.summary.mismatched, 1);
   assert.equal(report.summary.missingInLedger, 1);
+  assert.throws(
+    () =>
+      choosePaymentProvider({
+        method: 'gcash',
+        health: { xendit: 'down', paymongo: 'down', dragonpay: 'down' }
+      }),
+    /No healthy provider/
+  );
+});
+
+test('security helpers validate ttl and prune stale identities', async () => {
+  assert.throws(() => issueRotatingToken({ subject: 'u1', secret: 's1', ttlSec: 0 }), /ttlSec/);
+  assert.throws(() => issueRotatingToken({ subject: 'u1', secret: 's1', ttlSec: 999999 }), /ttlSec/);
+
+  const limiter = new RateLimiter({ max: 2, intervalMs: 5 });
+  limiter.check('ip-1');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  limiter.pruneStale();
+  assert.equal(limiter.hits.has('ip-1'), false);
 });

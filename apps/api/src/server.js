@@ -22,11 +22,20 @@ const seedHash = () => hashServerSeed(activeServerSeed);
 const nonceGuard = new NonceGuard(10_000);
 const rateLimiter = new RateLimiter({ max: 120, intervalMs: 60_000 });
 const autoSpinGuard = new AutoSpinGuard({ maxBursts: 40, intervalMs: 20_000 });
+const MAX_DEPOSIT_QUEUE_ITEMS = 2_000;
+const MAX_WITHDRAWAL_RECORDS = 10_000;
 const depositQueue = [];
 const withdrawals = new Map();
+const withdrawalOrder = [];
 const paymentHealth = { xendit: 'healthy', paymongo: 'healthy', dragonpay: 'healthy' };
 let tokenVersion = 1;
-let tokenSecret = process.env.JWT_ROTATION_SECRET || 'dev-rotating-secret';
+let tokenSecret = process.env.JWT_ROTATION_SECRET;
+if (!tokenSecret) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Environment variable JWT_ROTATION_SECRET must be set in production');
+  }
+  tokenSecret = crypto.randomBytes(32).toString('hex');
+}
 const rtpProfiles = [
   createRtpProfile({
     id: 'rtp-low',
@@ -112,6 +121,30 @@ function parseBodyOrReply(req, res) {
     json(res, statusCode, { error: error.message });
     return null;
   });
+}
+
+function enqueueDeposit(queueItem) {
+  depositQueue.push(queueItem);
+  if (depositQueue.length > MAX_DEPOSIT_QUEUE_ITEMS) {
+    // Evict oldest queue entries first to keep bounded in-memory usage.
+    const overflow = depositQueue.length - MAX_DEPOSIT_QUEUE_ITEMS;
+    depositQueue.splice(0, overflow);
+  }
+}
+
+function upsertWithdrawal(withdrawal) {
+  if (!withdrawal?.id) return;
+  const existingIndex = withdrawalOrder.indexOf(withdrawal.id);
+  const isNew = existingIndex === -1;
+  if (isNew && withdrawals.size >= MAX_WITHDRAWAL_RECORDS) {
+    const oldestId = withdrawalOrder.shift();
+    if (oldestId) withdrawals.delete(oldestId);
+  }
+  if (!isNew) {
+    withdrawalOrder.splice(existingIndex, 1);
+  }
+  withdrawalOrder.push(withdrawal.id);
+  withdrawals.set(withdrawal.id, withdrawal);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -230,7 +263,7 @@ const server = http.createServer(async (req, res) => {
         countryRisk: Number(body.countryRisk ?? 0)
       });
       const queueItem = createDepositQueueItem(deposit);
-      depositQueue.push(queueItem);
+      enqueueDeposit(queueItem);
       return json(res, 201, { ...deposit, riskScore, queueItemId: queueItem.id });
     } catch (error) {
       return json(res, 400, { error: error.message });
@@ -242,7 +275,7 @@ const server = http.createServer(async (req, res) => {
     if (!body || res.writableEnded) return;
     try {
       const withdrawal = createWithdrawalRequest(body);
-      withdrawals.set(withdrawal.id, withdrawal);
+      upsertWithdrawal(withdrawal);
       return json(res, 201, withdrawal);
     } catch (error) {
       return json(res, 400, { error: error.message });
@@ -259,7 +292,7 @@ const server = http.createServer(async (req, res) => {
     if (!current) return json(res, 404, { error: 'Withdrawal not found' });
     try {
       const approved = approveWithdrawal(current, { approverId: body.approverId, riskScore: body.riskScore });
-      withdrawals.set(current.id, approved);
+      upsertWithdrawal(approved);
       return json(res, 200, approved);
     } catch (error) {
       return json(res, 400, { error: error.message });

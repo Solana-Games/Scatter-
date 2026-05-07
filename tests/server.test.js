@@ -5,9 +5,14 @@ process.env.NODE_ENV = 'test';
 process.env.ADMIN_API_TOKEN = 'admin-secret';
 
 const { default: server } = await import('../apps/api/src/server.js');
+let baseUrl;
 
 test.after(() => {
   server.close();
+});
+
+test.before(async () => {
+  baseUrl = await startServer();
 });
 
 function startServer() {
@@ -20,7 +25,6 @@ function startServer() {
 }
 
 test('rotate seed requires admin token', async () => {
-  const baseUrl = await startServer();
   const unauthorized = await fetch(`${baseUrl}/provably-fair/rotate-seed`, { method: 'POST' });
   assert.equal(unauthorized.status, 401);
 
@@ -35,7 +39,6 @@ test('rotate seed requires admin token', async () => {
 });
 
 test('oversized payload returns 413', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const largeSeed = 'x'.repeat(1_000_100);
   const response = await fetch(`${baseUrl}/provably-fair/spin`, {
     method: 'POST',
@@ -46,7 +49,6 @@ test('oversized payload returns 413', async () => {
 });
 
 test('spin rejects invalid stake', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const response = await fetch(`${baseUrl}/provably-fair/spin`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -56,7 +58,6 @@ test('spin rejects invalid stake', async () => {
 });
 
 test('spin rejects nonce replay for same client seed', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const payload = { clientSeed: 'seed-1', nonce: 777, stake: 10 };
   const first = await fetch(`${baseUrl}/provably-fair/spin`, {
     method: 'POST',
@@ -73,7 +74,6 @@ test('spin rejects nonce replay for same client seed', async () => {
 });
 
 test('rtp simulation endpoint returns audit payload', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const response = await fetch(`${baseUrl}/rtp/simulate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -86,7 +86,6 @@ test('rtp simulation endpoint returns audit payload', async () => {
 });
 
 test('payment provider selection and withdrawal approval work', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const providerSelection = await fetch(`${baseUrl}/payments/provider/select`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -115,7 +114,6 @@ test('payment provider selection and withdrawal approval work', async () => {
 });
 
 test('token rotate and verify flow is functional', async () => {
-  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const rotate = await fetch(`${baseUrl}/security/token/rotate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-admin-token': 'admin-secret' },

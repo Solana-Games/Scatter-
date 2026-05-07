@@ -58,7 +58,7 @@ export function sampleWeightedSymbol(matrix, roll) {
 export function createRtpProfile({ id, targetRtp, volatility = 'medium', weights }) {
   if (typeof id !== 'string' || !id.trim()) throw new Error('profile id is required');
   if (!Number.isFinite(targetRtp) || targetRtp <= 0 || targetRtp > 105) {
-    throw new Error('targetRtp must be between 0 and 105');
+    throw new Error('targetRtp must be > 0 and <= 105');
   }
   if (!VOLATILITY_PRESETS[volatility]) throw new Error('unsupported volatility preset');
   return {
@@ -78,7 +78,8 @@ export function simulateRtpSpins({ profile, paytable, spins = 100000, bet = 1, s
   const outcomes = [];
   for (let i = 0; i < spins; i += 1) {
     const symbol = sampleWeightedSymbol(profile.matrix, random());
-    outcomes.push({ bet, symbol, payout: Number(paytable?.[symbol] ?? 0) });
+    const payoutMultiplier = Number(paytable?.[symbol] ?? 0);
+    outcomes.push({ bet, symbol, payout: Number((payoutMultiplier * bet).toFixed(4)) });
   }
   const totalStake = Number((spins * bet).toFixed(4));
   const totalPayout = Number(outcomes.reduce((acc, spin) => acc + spin.payout, 0).toFixed(4));
