@@ -11,6 +11,7 @@ const seedAuditChain = [hashServerSeed(activeServerSeed)];
 const seedHash = () => hashServerSeed(activeServerSeed);
 
 function timingSafeStringEqual(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') return false;
   const leftBuffer = Buffer.from(left, 'utf8');
   const rightBuffer = Buffer.from(right, 'utf8');
   if (leftBuffer.length !== rightBuffer.length) return false;

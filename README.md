@@ -29,6 +29,8 @@ npm run start:api
 - `POST /provably-fair/rotate-seed` (requires `x-admin-token`)
 - `POST /payments/deposit`
 
+Webhook signature verification expects the raw request body bytes/string (`sha256=<hex>`), not a parsed JSON object.
+
 ## Security Baseline
 
 - CSP and clickjacking protection headers.
