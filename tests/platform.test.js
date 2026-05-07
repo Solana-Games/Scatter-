@@ -12,6 +12,7 @@ test('wallet connect and web3 login are validated', () => {
   assert.equal(connected.connected, true);
   const login = walletLogin({ walletAddress: '0xabc12345', chain: 'ethereum' });
   assert.equal(login.chain, 'ethereum');
+  assert.ok(login.sessionHint);
   assert.equal(nftVipTier(3), 'elite');
 });
 

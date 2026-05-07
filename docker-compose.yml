@@ -8,8 +8,9 @@ services:
       - '4000:4000'
     environment:
       - PORT=4000
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/scaterx
+      - DATABASE_URL=postgresql://${DB_USER:-scaterx}:${DB_PASSWORD:-change_me}@db:5432/${DB_NAME:-scaterx}
       - REDIS_URL=redis://redis:6379
+      - ADMIN_API_TOKEN=${ADMIN_API_TOKEN:-change_me}
     depends_on:
       - db
       - redis
@@ -17,13 +18,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_DB: scaterx
-    ports:
-      - '5432:5432'
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me}
+      POSTGRES_USER: ${DB_USER:-scaterx}
+      POSTGRES_DB: ${DB_NAME:-scaterx}
 
   redis:
     image: redis:7-alpine
-    ports:
-      - '6379:6379'

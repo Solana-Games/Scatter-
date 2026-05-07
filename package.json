@@ -9,8 +9,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node scripts/build-check.mjs",
-    "lint": "node scripts/lint-check.mjs",
+    "build": "npm run build:check",
+    "lint": "npm run lint:check",
+    "build:check": "node scripts/build-check.mjs",
+    "lint:check": "node scripts/lint-check.mjs",
     "test": "node --test tests/*.test.js",
     "start:api": "node apps/api/src/server.js"
   },

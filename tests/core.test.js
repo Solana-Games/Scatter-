@@ -1,10 +1,12 @@
+import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { estimateRtp, classifyVolatility } from '../packages/core/src/rtp.js';
 import { vipTierFromPoints, cashbackForTier } from '../packages/core/src/vip.js';
 import { createSpinOutcome, verifyOutcome } from '../apps/api/src/provablyFair.js';
-import { createDeposit, retryableStatus } from '../apps/api/src/payments.js';
+import { createDeposit, retryableStatus, validateWebhookSignature } from '../apps/api/src/payments.js';
+import { JackpotPool } from '../apps/api/src/jackpot.js';
 
 test('RTP estimator calculates expected return', () => {
   const spins = [
@@ -35,9 +37,32 @@ test('provably fair outcome verifies', () => {
   assert.equal(verifyOutcome({ serverSeed, clientSeed, nonce, digest: outcome.digest }), true);
 });
 
+test('provably fair rejects invalid symbols and nonce inputs', () => {
+  assert.throws(() => createSpinOutcome({ serverSeed: 's', clientSeed: 'c', nonce: -1 }), /nonce/);
+  assert.throws(() => createSpinOutcome({ serverSeed: 's', clientSeed: 'c', nonce: 0, symbols: 0 }), /symbols/);
+});
+
 test('payment creation validates provider and status retry', () => {
   const dep = createDeposit({ provider: 'xendit', method: 'gcash', amount: 500, userId: 'u1' });
+  assert.match(dep.id, /^dep_[0-9a-f-]{36}$/);
   assert.equal(dep.status, 'pending_approval');
   assert.equal(retryableStatus('timeout'), true);
   assert.equal(retryableStatus('completed'), false);
+});
+
+test('webhook signatures are HMAC validated in timing-safe form', () => {
+  const payload = '{"id":"evt_1","status":"paid"}';
+  const secret = 'webhook-secret';
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  assert.equal(validateWebhookSignature({ payload, signature: `sha256=${expected}`, secret }), true);
+  assert.equal(validateWebhookSignature({ payload, signature: expected.slice(2), secret }), false);
+});
+
+test('jackpot events are capped to prevent unbounded growth', () => {
+  const pool = new JackpotPool(1000, 3);
+  pool.contribute(100);
+  pool.contribute(100);
+  pool.contribute(100);
+  pool.payout('u1');
+  assert.equal(pool.events.length, 3);
 });

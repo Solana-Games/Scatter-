@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const PROVIDERS = new Set(['xendit', 'paymongo', 'dragonpay']);
 const METHODS = new Set(['gcash', 'maya', 'grabpay', 'gotyme', 'qrph', 'bank_transfer', 'card']);
 
@@ -7,7 +9,7 @@ export function createDeposit({ provider, method, amount, userId }) {
   if (amount <= 0) throw new Error('Amount must be positive');
 
   return {
-    id: `dep_${Date.now()}`,
+    id: `dep_${crypto.randomUUID()}`,
     provider,
     method,
     amount,
@@ -19,8 +21,14 @@ export function createDeposit({ provider, method, amount, userId }) {
 }
 
 export function validateWebhookSignature({ payload, signature, secret }) {
-  const expected = Buffer.from(`${payload}.${secret}`).toString('base64url');
-  return expected === signature;
+  if (!secret || !signature) return false;
+  const rawPayload = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  const expectedHex = crypto.createHmac('sha256', secret).update(rawPayload).digest('hex');
+  const normalizedSignature = String(signature).trim().replace(/^sha256=/i, '');
+  const expectedBuffer = Buffer.from(expectedHex, 'hex');
+  const signatureBuffer = Buffer.from(normalizedSignature, 'hex');
+  if (expectedBuffer.length !== signatureBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 export function retryableStatus(status) {

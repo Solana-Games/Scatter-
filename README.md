@@ -15,8 +15,8 @@ SCATERX is a production-oriented cyberpunk crypto casino foundation repository d
 
 ```bash
 npm test
-npm run lint
-npm run build
+npm run lint:check
+npm run build:check
 npm run start:api
 ```
 
@@ -26,7 +26,7 @@ npm run start:api
 - `GET /provably-fair/current`
 - `POST /provably-fair/spin`
 - `POST /provably-fair/verify`
-- `POST /provably-fair/rotate-seed`
+- `POST /provably-fair/rotate-seed` (requires `x-admin-token`)
 - `POST /payments/deposit`
 
 ## Security Baseline
