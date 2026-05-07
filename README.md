@@ -33,7 +33,9 @@ npm run start:api
 
 - CSP and clickjacking protection headers.
 - Deterministic provably-fair verifier flow (server seed + client seed + nonce).
+- Client seeds are normalized and capped to 64 characters for deterministic hashing.
 - Input validation on payment and RNG routes.
+- Seed rotation includes versioned hash chaining in-process (persist to storage for multi-instance production use).
 
 ## Testing
 

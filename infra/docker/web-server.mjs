@@ -1,32 +1,43 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
 
 const port = Number(process.env.PORT || 3000);
-const root = join(process.cwd(), 'apps/web');
 
-const mime = {
-  '.html': 'text/html; charset=utf-8',
-  '.tsx': 'text/plain; charset=utf-8',
-  '.ts': 'text/plain; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8'
-};
+const page = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SCATERX</title>
+    <style>
+      body { margin:0; font-family: Inter, system-ui, sans-serif; background:#0b0220; color:#d7ccff; }
+      main { max-width: 960px; margin: 0 auto; padding: 24px; }
+      h1 { color: #a36dff; }
+      .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap: 12px; }
+      .card { background: rgba(255,255,255,.06); border:1px solid #42227b; border-radius: 12px; padding: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>SCATERX Casino Platform</h1>
+      <p>Containerized web surface for the SCATERX platform baseline.</p>
+      <section class="grid">
+        <article class="card">Provably Fair SHA-256 RNG</article>
+        <article class="card">Scatter + Avalanche Slot Engine</article>
+        <article class="card">PH Payments + Wallet Integrations</article>
+        <article class="card">Realtime Jackpot & Tournament Services</article>
+      </section>
+    </main>
+  </body>
+</html>`;
 
 http
-  .createServer(async (req, res) => {
-    const safePath = (req.url === '/' ? '/app/page.tsx' : req.url || '/app/page.tsx').replace(/\.\./g, '');
-    const filePath = join(root, safePath);
-    try {
-      const content = await readFile(filePath);
-      const contentType = mime[extname(filePath)] || 'application/octet-stream';
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
-    } catch {
-      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'File not found in web image', path: safePath }));
+  .createServer((req, res) => {
+    if (req.url === '/' || req.url === '/index.html') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(page);
     }
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ error: 'Not found' }));
   })
   .listen(port, () => {
     console.log(`SCATERX web image serving on :${port}`);

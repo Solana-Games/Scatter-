@@ -35,7 +35,7 @@ test('rotate seed requires admin token', async () => {
 });
 
 test('oversized payload returns 413', async () => {
-  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const baseUrl = server.listening ? `http://127.0.0.1:${server.address().port}` : await startServer();
   const largeSeed = 'x'.repeat(1_000_100);
   const response = await fetch(`${baseUrl}/provably-fair/spin`, {
     method: 'POST',

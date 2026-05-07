@@ -22,9 +22,11 @@ export function createDeposit({ provider, method, amount, userId }) {
 
 export function validateWebhookSignature({ payload, signature, secret }) {
   if (!secret || !signature) return false;
+  const signatureText = String(signature).trim();
+  if (!/^sha256=[a-fA-F0-9]{64}$/.test(signatureText)) return false;
   const rawPayload = typeof payload === 'string' ? payload : JSON.stringify(payload);
   const expectedHex = crypto.createHmac('sha256', secret).update(rawPayload).digest('hex');
-  const normalizedSignature = String(signature).trim().replace(/^sha256=/i, '');
+  const normalizedSignature = signatureText.slice('sha256='.length);
   const expectedBuffer = Buffer.from(expectedHex, 'hex');
   const signatureBuffer = Buffer.from(normalizedSignature, 'hex');
   if (expectedBuffer.length !== signatureBuffer.length) return false;
