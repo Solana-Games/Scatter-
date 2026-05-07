@@ -1,0 +1,6 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY apps/web ./apps/web
+COPY infra/docker/web-server.mjs ./infra/docker/web-server.mjs
+EXPOSE 3000
+CMD ["node", "infra/docker/web-server.mjs"]

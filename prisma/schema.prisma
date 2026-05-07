@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  wallet      String?
+  vipLevel    Int      @default(1)
+  createdAt   DateTime @default(now())
+  transactions Transaction[]
+}
+
+model Transaction {
+  id         String   @id @default(cuid())
+  userId     String
+  provider   String
+  method     String
+  amount     Decimal
+  status     String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model ProvablyFairAudit {
+  id         String   @id @default(cuid())
+  serverSeed String
+  clientSeed String
+  nonce      Int
+  outcome    String
+  hash       String
+  createdAt  DateTime @default(now())
+}
