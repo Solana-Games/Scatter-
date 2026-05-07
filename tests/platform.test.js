@@ -70,7 +70,7 @@ test('slot feature helpers support sticky and mystery mechanics', () => {
   const transformed = symbolTransformationEvent(revealed, 'K', 'WILD');
   assert.equal(transformed[1][0], 'WILD');
   assert.equal(['double_payout', 'extra_scatter', 'mystery_upgrade', 'mini_respin'].includes(randomModifier(2)), true);
-  const gamble = gambleFeature({ currentWin: 100, guess: 'red', source: 2 });
+  const gamble = gambleFeature({ currentWin: 100, guess: 'red', deterministicSource: 2 });
   assert.equal(gamble.won, true);
   assert.equal(shouldTriggerRespin({ hasScatter: false, randomValue: 0.95 }), true);
 });

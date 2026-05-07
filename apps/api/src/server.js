@@ -318,17 +318,6 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { previousHash, serverSeedHash: nextHash, seedVersion: seedAuditChain.length });
   }
 
-  if (req.method === 'POST' && path === '/payments/deposit/webhook/verify') {
-    const body = await parseBodyOrReply(req, res);
-    if (!body || res.writableEnded) return;
-    try {
-      const deposit = createDeposit(body);
-      return json(res, 201, deposit);
-    } catch (error) {
-      return json(res, 400, { error: error.message });
-    }
-  }
-
   return json(res, 404, { error: 'Not found' });
 });
 

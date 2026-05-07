@@ -57,8 +57,8 @@ export function sampleWeightedSymbol(matrix, roll) {
 
 export function createRtpProfile({ id, targetRtp, volatility = 'medium', weights }) {
   if (typeof id !== 'string' || !id.trim()) throw new Error('profile id is required');
-  if (!Number.isFinite(targetRtp) || targetRtp <= 0 || targetRtp > 500) {
-    throw new Error('targetRtp must be between 0 and 500');
+  if (!Number.isFinite(targetRtp) || targetRtp <= 0 || targetRtp > 105) {
+    throw new Error('targetRtp must be between 0 and 105');
   }
   if (!VOLATILITY_PRESETS[volatility]) throw new Error('unsupported volatility preset');
   return {

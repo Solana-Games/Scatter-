@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+const MAX_CLIENT_SEED_LENGTH = 64;
+
 export class NonceGuard {
   constructor(windowSize = 1000) {
     this.windowSize = windowSize;
@@ -7,7 +9,7 @@ export class NonceGuard {
   }
 
   assertAndTrack({ clientSeed, nonce }) {
-    const normalizedSeed = String(clientSeed ?? '').trim().slice(0, 64);
+    const normalizedSeed = String(clientSeed ?? '').trim().slice(0, MAX_CLIENT_SEED_LENGTH);
     if (!normalizedSeed) throw new Error('clientSeed is required');
     if (!Number.isInteger(nonce) || nonce < 0) throw new Error('nonce must be a non-negative integer');
     const key = `${normalizedSeed}:${nonce}`;

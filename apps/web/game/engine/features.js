@@ -41,11 +41,11 @@ export function symbolTransformationEvent(grid, fromSymbol, toSymbol) {
   return grid.map((row) => row.map((symbol) => (symbol === fromSymbol ? toSymbol : symbol)));
 }
 
-export function gambleFeature({ currentWin, guess, source = 0 }) {
+export function gambleFeature({ currentWin, guess, deterministicSource = 0 }) {
   const normalizedWin = Number(currentWin);
   if (!Number.isFinite(normalizedWin) || normalizedWin <= 0) throw new Error('currentWin must be positive');
   if (!['red', 'black'].includes(guess)) throw new Error('guess must be red or black');
-  const outcome = Math.abs(Number(source) || 0) % 2 === 0 ? 'red' : 'black';
+  const outcome = Math.abs(Number(deterministicSource) || 0) % 2 === 0 ? 'red' : 'black';
   const won = guess === outcome;
   return { outcome, won, resultingWin: won ? normalizedWin * 2 : 0 };
 }

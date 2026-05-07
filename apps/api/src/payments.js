@@ -12,7 +12,7 @@ export function createDeposit({ provider, method, amount, userId }) {
   if (!PROVIDERS.has(provider)) throw new Error('Unsupported provider');
   if (!METHODS.has(method)) throw new Error('Unsupported payment method');
   if (!PROVIDER_METHODS[provider]?.has(method)) {
-    throw new Error(`Unsupported payment method for provider: ${provider}`);
+    throw new Error(`Unsupported payment method '${method}' for provider: ${provider}`);
   }
   const normalizedAmount = Number(amount);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
