@@ -7,6 +7,7 @@ SCATERX is a production-oriented cyberpunk crypto casino foundation repository d
 - **Casino backend API** with provably fair SHA-256 RNG endpoints, jackpot accumulation, and payment abstraction for Xendit/PayMongo/Dragonpay.
 - **Core casino math modules** for RTP and volatility calculations plus VIP cashback logic.
 - **PR2 convergence modules**: RTP profile simulation/audit tooling, payout distribution + volatility heatmaps, anti-replay nonce guards, anti-burst auto-spin guard, provider failover, withdrawal approval workflow, and reconciliation reporting.
+- **PR3 omega modules**: AI economy tick orchestration (churn, segmentation, retention offers, jackpot tuning), intelligent payment routing + payout queue orchestration, realtime gateway/failover planning, tournament network placement, and extended web3 chain + tokenized jackpot helpers.
 - **Frontend shell** (Next.js-style app structure) with player and admin entry points.
 - **Infrastructure** with Docker, Docker Compose, Kubernetes deployment, NGINX reverse proxy, PM2 config, and CI workflow.
 - **Persistence schema** using Prisma (PostgreSQL).
@@ -35,10 +36,19 @@ npm run start:api
 - `POST /payments/withdraw`
 - `POST /payments/withdraw/approve` (requires `x-admin-token`)
 - `POST /payments/reconcile`
+- `POST /payments/route/intelligent`
+- `POST /payments/settlement/track`
+- `POST /payments/payout/orchestrate` (requires `x-admin-token`)
 - `GET /payments/queue` (requires `x-admin-token`)
 - `GET /jackpot/ticker`
 - `POST /security/token/rotate` (requires `x-admin-token`)
 - `POST /security/token/verify`
+- `POST /ai/economy/evaluate`
+- `POST /realtime/topology`
+- `POST /realtime/failover`
+- `POST /tournaments/orchestrate`
+- `POST /tournaments/network/assign`
+- `GET /tournaments/network/status`
 
 Webhook signature verification expects the raw request body bytes/string (`sha256=<hex>`), not a parsed JSON object.
 

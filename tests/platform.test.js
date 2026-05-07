@@ -3,18 +3,33 @@ import assert from 'node:assert/strict';
 
 import { connectWallet } from '../apps/web/hooks/useWallets.js';
 import { ScatterScene } from '../apps/web/game/phaser/ScatterScene.js';
-import { adaptiveAnimationTiming, gpuReelBlurVelocity, multiplierOverlayFrames, reelSpinDuration } from '../apps/web/game/animations/reels.js';
 import {
+  adaptiveAnimationTiming,
+  adaptiveQualityProfile,
+  cinematicCameraEffect,
+  gpuReelBlurVelocity,
+  multiplierOverlayFrames,
+  reelSpinDuration,
+  reelTensionCurve
+} from '../apps/web/game/animations/reels.js';
+import {
+  adaptiveJackpotDropChance,
   applyStickyWilds,
   applyWalkingWilds,
+  clusterPays,
+  expandReelGrid,
   gambleFeature,
   randomModifier,
+  randomEventEngine,
   resolveMysterySymbols,
   shouldTriggerRespin,
+  splitSymbol,
   symbolTransformationEvent
 } from '../apps/web/game/engine/features.js';
-import { TournamentRoom } from '../apps/api/src/services/multiplayer.js';
-import { walletLogin, nftVipTier } from '../apps/api/src/services/web3.js';
+import { TournamentNetwork, TournamentRoom } from '../apps/api/src/services/multiplayer.js';
+import { nftVipTier, tokenizedJackpotLedger, walletLogin, walletReputationScore } from '../apps/api/src/services/web3.js';
+import { economyTick } from '../apps/api/src/services/aiEconomy.js';
+import { buildGatewayPlan, orchestrateTournamentRooms, websocketFailoverPlan } from '../apps/api/src/services/realtimeScaling.js';
 
 test('wallet connect and web3 login are validated', () => {
   const connected = connectWallet('phantom', 'SoLanaAddR001');
@@ -23,6 +38,8 @@ test('wallet connect and web3 login are validated', () => {
   assert.equal(login.chain, 'ethereum');
   assert.ok(login.sessionHint);
   assert.equal(nftVipTier(3), 'elite');
+  assert.ok(walletReputationScore({ walletAgeDays: 365, txCount: 800, flaggedEvents: 0 }) > 0.3);
+  assert.equal(tokenizedJackpotLedger({ jackpotId: 'jp-1', totalAmount: 120, chains: ['solana', 'base'] }).length, 2);
 });
 
 test('scatter scene and reel animation helpers are deterministic', () => {
@@ -41,6 +58,11 @@ test('scatter scene and reel animation helpers are deterministic', () => {
   const chain = scene.evaluateComboChain([2, 4, 1, 0, 8]);
   assert.equal(chain.multiplier, 2);
   assert.equal(scene.multiplierOverlay(6).pulse, true);
+  assert.equal(scene.evaluateMegaWin({ payout: 800, bet: 10 }).mega, true);
+  assert.equal(scene.environmentalPulse(0.8).distortion, true);
+  assert.ok(reelTensionCurve({ reelIndex: 4, totalReels: 5, nearBonus: true }) > 1.5);
+  assert.equal(cinematicCameraEffect(60).chroma, true);
+  assert.equal(adaptiveQualityProfile({ deviceTier: 'flagship', batterySaver: false }).targetFps, 120);
 });
 
 test('multiplayer leaderboard sorts by score', () => {
@@ -50,6 +72,11 @@ test('multiplayer leaderboard sorts by score', () => {
   room.submitScore('u1', 99);
   room.submitScore('u2', 120);
   assert.equal(room.leaderboard()[0].userId, 'u2');
+  const network = new TournamentNetwork(2);
+  network.assignPlayer({ userId: 'u1', region: 'apac' });
+  network.assignPlayer({ userId: 'u2', region: 'apac' });
+  network.assignPlayer({ userId: 'u3', region: 'apac' });
+  assert.equal(network.networkStatus().apac.rooms, 2);
 });
 
 test('slot feature helpers support sticky and mystery mechanics', () => {
@@ -73,4 +100,54 @@ test('slot feature helpers support sticky and mystery mechanics', () => {
   const gamble = gambleFeature({ currentWin: 100, guess: 'red', deterministicSource: 2 });
   assert.equal(gamble.won, true);
   assert.equal(shouldTriggerRespin({ hasScatter: false, randomValue: 0.95 }), true);
+  const clusters = clusterPays([
+    ['A', 'A', 'K'],
+    ['A', 'Q', 'K'],
+    ['A', 'K', 'K']
+  ], 3);
+  assert.equal(clusters.length >= 1, true);
+  assert.equal(expandReelGrid([['A', 'B'], ['C', 'D']], 'right', 1)[0].length, 3);
+  assert.equal(splitSymbol([['SCATTER', 'A']], 'SCATTER', ['S1', 'S2'])[0].length, 3);
+  assert.equal(randomEventEngine(5, ['x', 'y', 'z']), 'z');
+  assert.ok(adaptiveJackpotDropChance({ baseChance: 0.02, playerSegment: 'whale', streak: 5 }) > 0.02);
+});
+
+test('ai economy and realtime scaling orchestration outputs stable plans', () => {
+  const tick = economyTick({
+    daysSinceLastSession: 8,
+    sessions30d: 3,
+    avgSessionMinutes: 12,
+    depositTrend: -150,
+    supportTickets30d: 2,
+    lifetimeValue: 21000,
+    avgBet: 120,
+    activePlayers: 4000,
+    currentJackpotPool: 180000,
+    targetJackpotPool: 350000
+  });
+  assert.equal(typeof tick.segment, 'string');
+  assert.ok(tick.jackpotContributionBps >= 40);
+
+  const gateway = buildGatewayPlan({ regions: ['apac', 'eu'], activeSockets: 120000, maxSocketsPerGateway: 50000 });
+  assert.equal(gateway.length, 2);
+  assert.ok(gateway[0].gateways >= 1);
+
+  const rooms = orchestrateTournamentRooms({
+    players: [
+      { userId: 'u1', region: 'apac', latencyMs: 40 },
+      { userId: 'u2', region: 'apac', latencyMs: 65 },
+      { userId: 'u3', region: 'eu', latencyMs: 80 }
+    ],
+    roomSize: 2
+  });
+  assert.equal(rooms.length, 2);
+
+  const failover = websocketFailoverPlan({
+    nodes: [
+      { id: 'n1', status: 'healthy', spareCapacity: 8000 },
+      { id: 'n2', status: 'healthy', spareCapacity: 3000 },
+      { id: 'n3', status: 'down', spareCapacity: 0 }
+    ]
+  });
+  assert.equal(failover.unhealthyCount, 1);
 });

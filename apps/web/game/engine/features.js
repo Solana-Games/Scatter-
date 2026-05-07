@@ -55,3 +55,78 @@ export function shouldTriggerRespin({ hasScatter, randomValue }) {
   const roll = Math.max(0, Math.min(1, Number(randomValue) || 0));
   return roll >= 0.93;
 }
+
+export function clusterPays(grid, minCluster = 4) {
+  if (!Array.isArray(grid) || !grid.length) return [];
+  const rows = grid.length;
+  const cols = grid[0].length;
+  const visited = new Set();
+  const clusters = [];
+
+  const neighbors = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1]
+  ];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const startKey = `${row}:${col}`;
+      if (visited.has(startKey)) continue;
+      const symbol = grid[row][col];
+      const queue = [[row, col]];
+      const cells = [];
+      while (queue.length) {
+        const [r, c] = queue.pop();
+        const key = `${r}:${c}`;
+        if (visited.has(key)) continue;
+        if (r < 0 || c < 0 || r >= rows || c >= cols) continue;
+        if (grid[r][c] !== symbol) continue;
+        visited.add(key);
+        cells.push([r, c]);
+        for (const [dr, dc] of neighbors) {
+          queue.push([r + dr, c + dc]);
+        }
+      }
+      if (cells.length >= minCluster) {
+        clusters.push({ symbol, size: cells.length, cells });
+      }
+    }
+  }
+  return clusters;
+}
+
+export function expandReelGrid(grid, direction = 'right', growth = 1, maxColumns = 8) {
+  const columns = grid[0]?.length ?? 0;
+  const addColumns = Math.max(0, Number(growth) || 0);
+  const targetColumns = Math.min(maxColumns, columns + addColumns);
+  if (targetColumns <= columns) return grid;
+  return grid.map((row) => {
+    const seedSymbol = direction === 'left' ? row[0] : row[row.length - 1];
+    const fill = new Array(targetColumns - columns).fill(seedSymbol);
+    return direction === 'left' ? [...fill, ...row] : [...row, ...fill];
+  });
+}
+
+export function splitSymbol(grid, symbol, replacement = ['A', 'K']) {
+  const [left, right] = replacement;
+  return grid.map((row) =>
+    row.flatMap((cell) => {
+      if (cell !== symbol) return [cell];
+      return [left, right];
+    })
+  );
+}
+
+export function randomEventEngine(seed = 0, events = ['mystery_reel', 'jackpot_boost', 'boss_bonus']) {
+  if (!events.length) throw new Error('events must not be empty');
+  const index = Math.abs(Math.floor(Number(seed) || 0)) % events.length;
+  return events[index];
+}
+
+export function adaptiveJackpotDropChance({ baseChance = 0.01, playerSegment = 'core', streak = 0 }) {
+  const segmentMod = playerSegment === 'whale' ? 1.6 : playerSegment === 'vip' ? 1.35 : playerSegment === 'at_risk' ? 1.2 : 1;
+  const streakMod = 1 + Math.min(0.5, Math.max(0, Number(streak) || 0) * 0.03);
+  return Number(Math.max(0.001, Math.min(0.25, Number(baseChance) * segmentMod * streakMod)).toFixed(4));
+}

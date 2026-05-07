@@ -8,11 +8,17 @@ import {
   createDeposit,
   createDepositQueueItem,
   createWithdrawalRequest,
-  reconcileTransactions
+  orchestratePayoutQueue,
+  reconcileTransactions,
+  routePaymentIntent,
+  trackSettlementWindow
 } from './payments.js';
 import { JackpotPool } from './jackpot.js';
 import { AutoSpinGuard, issueRotatingToken, NonceGuard, RateLimiter, verifyRotatingToken } from './security.js';
 import { auditRtpProfile, createRtpProfile } from '../../../packages/core/src/rtp.js';
+import { economyTick } from './services/aiEconomy.js';
+import { TournamentNetwork } from './services/multiplayer.js';
+import { buildGatewayPlan, orchestrateTournamentRooms, websocketFailoverPlan } from './services/realtimeScaling.js';
 
 const port = Number(process.env.PORT || 4000);
 const jackpot = new JackpotPool();
@@ -28,6 +34,7 @@ const depositQueue = [];
 const withdrawals = new Map();
 const withdrawalOrder = [];
 const paymentHealth = { xendit: 'healthy', paymongo: 'healthy', dragonpay: 'healthy' };
+const tournamentNetwork = new TournamentNetwork(100);
 let tokenVersion = 1;
 let tokenSecret = process.env.JWT_ROTATION_SECRET;
 if (!tokenSecret) {
@@ -250,6 +257,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === 'POST' && path === '/payments/route/intelligent') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    try {
+      const route = routePaymentIntent({
+        method: body.method,
+        amount: body.amount,
+        preferredProvider: body.preferredProvider,
+        health: { ...paymentHealth, ...(body.health ?? {}) },
+        providerMetrics: body.providerMetrics ?? {}
+      });
+      return json(res, 200, route);
+    } catch (error) {
+      return json(res, 400, { error: error.message });
+    }
+  }
+
   if (req.method === 'POST' && path === '/payments/deposit') {
     const body = await parseBodyOrReply(req, res);
     if (!body || res.writableEnded) return;
@@ -311,6 +335,93 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       return json(res, 400, { error: error.message });
     }
+  }
+
+  if (req.method === 'POST' && path === '/payments/settlement/track') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    try {
+      const report = trackSettlementWindow({
+        transactions: body.transactions ?? [],
+        windowMinutes: body.windowMinutes
+      });
+      return json(res, 200, report);
+    } catch (error) {
+      return json(res, 400, { error: error.message });
+    }
+  }
+
+  if (req.method === 'POST' && path === '/payments/payout/orchestrate') {
+    if (!isAdminAuthorized(req)) {
+      return json(res, 401, { error: 'Unauthorized' });
+    }
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    try {
+      const result = orchestratePayoutQueue({
+        requests: body.requests ?? [],
+        availableLiquidity: body.availableLiquidity,
+        maxBatch: body.maxBatch
+      });
+      return json(res, 200, result);
+    } catch (error) {
+      return json(res, 400, { error: error.message });
+    }
+  }
+
+  if (req.method === 'POST' && path === '/ai/economy/evaluate') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    try {
+      const tick = economyTick(body);
+      return json(res, 200, tick);
+    } catch (error) {
+      return json(res, 400, { error: error.message });
+    }
+  }
+
+  if (req.method === 'POST' && path === '/realtime/topology') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    const plan = buildGatewayPlan({
+      regions: body.regions ?? ['global'],
+      activeSockets: body.activeSockets,
+      maxSocketsPerGateway: body.maxSocketsPerGateway
+    });
+    return json(res, 200, { plan });
+  }
+
+  if (req.method === 'POST' && path === '/realtime/failover') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    const plan = websocketFailoverPlan({ nodes: body.nodes ?? [] });
+    return json(res, 200, plan);
+  }
+
+  if (req.method === 'POST' && path === '/tournaments/orchestrate') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    const rooms = orchestrateTournamentRooms({ players: body.players ?? [], roomSize: body.roomSize ?? 100 });
+    return json(res, 200, { rooms });
+  }
+
+  if (req.method === 'POST' && path === '/tournaments/network/assign') {
+    const body = await parseBodyOrReply(req, res);
+    if (!body || res.writableEnded) return;
+    try {
+      const assignment = tournamentNetwork.assignPlayer({
+        userId: body.userId,
+        region: body.region,
+        score: body.score
+      });
+      return json(res, 200, assignment);
+    } catch (error) {
+      return json(res, 400, { error: error.message });
+    }
+  }
+
+  if (req.method === 'GET' && path === '/tournaments/network/status') {
+    return json(res, 200, tournamentNetwork.networkStatus());
   }
 
   if (req.method === 'POST' && path === '/security/token/rotate') {
