@@ -2,10 +2,29 @@ import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { estimateRtp, classifyVolatility } from '../packages/core/src/rtp.js';
+import {
+  auditRtpProfile,
+  classifyVolatility,
+  createRtpProfile,
+  createWeightedMatrix,
+  estimateRtp,
+  payoutDistribution,
+  sampleWeightedSymbol,
+  simulateRtpSpins,
+  volatilityHeatmap
+} from '../packages/core/src/rtp.js';
 import { vipTierFromPoints, cashbackForTier } from '../packages/core/src/vip.js';
 import { createSpinOutcome, verifyOutcome } from '../apps/api/src/provablyFair.js';
-import { createDeposit, retryableStatus, validateWebhookSignature } from '../apps/api/src/payments.js';
+import {
+  approveWithdrawal,
+  calculateFraudScore,
+  choosePaymentProvider,
+  createDeposit,
+  createWithdrawalRequest,
+  reconcileTransactions,
+  retryableStatus,
+  validateWebhookSignature
+} from '../apps/api/src/payments.js';
 import { JackpotPool } from '../apps/api/src/jackpot.js';
 
 test('RTP estimator calculates expected return', () => {
@@ -68,4 +87,79 @@ test('jackpot events are capped to prevent unbounded growth', () => {
   pool.contribute(100);
   pool.payout('u1');
   assert.equal(pool.events.length, 3);
+});
+
+test('weighted matrix and simulation produce deterministic RTP analytics', () => {
+  const profile = createRtpProfile({
+    id: 'sim-medium',
+    targetRtp: 96,
+    volatility: 'medium',
+    weights: { A: 40, B: 30, C: 20, WILD: 10 }
+  });
+  const matrix = createWeightedMatrix({ A: 2, B: 1 });
+  assert.equal(sampleWeightedSymbol(matrix, 0.2), 'A');
+  assert.equal(sampleWeightedSymbol(matrix, 0.95), 'B');
+
+  const simulation = simulateRtpSpins({
+    profile,
+    paytable: { A: 0.8, B: 1.2, C: 2.5, WILD: 8 },
+    spins: 2000,
+    bet: 1,
+    seed: 'deterministic'
+  });
+  assert.equal(simulation.outcomes.length, 2000);
+  assert.ok(simulation.rtp > 0);
+
+  const distribution = payoutDistribution(simulation.outcomes, 2);
+  assert.ok(distribution.length >= 1);
+
+  const heatmap = volatilityHeatmap(simulation.outcomes, 200);
+  assert.ok(heatmap.length >= 1);
+
+  const audit = auditRtpProfile({ profile, paytable: { A: 0.8, B: 1.2, C: 2.5, WILD: 8 }, spins: 2000 });
+  assert.equal(audit.profileId, 'sim-medium');
+  assert.ok(Number.isFinite(audit.rtpDrift));
+});
+
+test('payment failover, withdrawal approval, fraud scoring, and reconciliation work', () => {
+  const selected = choosePaymentProvider({
+    method: 'gcash',
+    preferredProvider: 'xendit',
+    health: { xendit: 'degraded', paymongo: 'healthy', dragonpay: 'healthy' }
+  });
+  assert.equal(selected, 'xendit');
+
+  const withdrawal = createWithdrawalRequest({
+    userId: 'u1',
+    amount: 500,
+    destination: '09170000000',
+    method: 'maya'
+  });
+  const approved = approveWithdrawal(withdrawal, { approverId: 'admin-1', riskScore: 0.2 });
+  assert.equal(approved.status, 'approved');
+  assert.equal(approved.locked, false);
+
+  const score = calculateFraudScore({
+    amount: 10000,
+    velocityCount: 5,
+    deviceTrust: 0.4,
+    kycVerified: false,
+    countryRisk: 0.5
+  });
+  assert.ok(score > 0 && score <= 1);
+
+  const report = reconcileTransactions({
+    ledgerEntries: [
+      { id: 'tx1', amount: 100, status: 'completed' },
+      { id: 'tx2', amount: 50, status: 'pending' }
+    ],
+    providerEntries: [
+      { id: 'tx1', amount: 100, status: 'completed' },
+      { id: 'tx2', amount: 50, status: 'failed' },
+      { id: 'tx3', amount: 10, status: 'completed' }
+    ]
+  });
+  assert.equal(report.summary.matched, 1);
+  assert.equal(report.summary.mismatched, 1);
+  assert.equal(report.summary.missingInLedger, 1);
 });
