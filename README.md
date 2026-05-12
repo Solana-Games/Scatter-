@@ -1,48 +1,142 @@
 # SCATERX Casino Platform
 
-SCATERX is a production-oriented cyberpunk crypto casino foundation repository designed for web, mobile web/PWA, desktop, and native wrappers.
+SCATERX is a production-oriented cyberpunk crypto casino foundation for web, mobile wrappers, and backend live operations.
 
-## Included Platform Modules
+## Overview
 
-- **Casino backend API** with provably fair SHA-256 RNG endpoints, jackpot accumulation, and payment abstraction for Xendit/PayMongo/Dragonpay.
-- **Core casino math modules** for RTP and volatility calculations plus VIP cashback logic.
-- **PR2 convergence modules**: RTP profile simulation/audit tooling, payout distribution + volatility heatmaps, anti-replay nonce guards, anti-burst auto-spin guard, provider failover, withdrawal approval workflow, and reconciliation reporting.
-- **PR3 omega modules**: AI economy tick orchestration (churn, segmentation, retention offers, jackpot tuning), intelligent payment routing + payout queue orchestration, realtime gateway/failover planning, tournament network placement, and extended web3 chain + tokenized jackpot helpers.
-- **Frontend shell** (Next.js-style app structure) with player and admin entry points.
-- **Infrastructure** with Docker, Docker Compose, Kubernetes deployment, NGINX reverse proxy, PM2 config, and CI workflow.
-- **Persistence schema** using Prisma (PostgreSQL).
-- **Mobile and desktop wrappers** via Capacitor and Electron configuration.
+This repository includes:
+- provably fair slot backend primitives
+- payment orchestration and settlement tooling
+- realtime/tournament orchestration helpers
+- wallet/web3 integration helpers
+- web shell routes for player/admin operational UX
 
-## Quick Start
+## Feature Matrix
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Landing Page | ✅ | `apps/web/app/page.tsx` |
+| Player Dashboard | ✅ | `apps/web/app/dashboard/page.tsx` (wallet session required) |
+| Protected Admin Dashboard | ✅ | `apps/web/app/admin/page.tsx` requires dashboard token |
+| Wallet Connect UX | ✅ | `apps/web/app/wallet/page.tsx` |
+| Transaction Feedback UI | ✅ | `apps/web/app/transactions/page.tsx` |
+| Settings/Profile UI | ✅ | `apps/web/app/settings/page.tsx` |
+| Loading State | ✅ | `apps/web/app/loading.tsx` |
+| Error Boundary | ✅ | `apps/web/app/error.tsx` |
+| Empty States | ✅ | dashboard + transactions panels |
+| Dark/Light Theme | ✅ | CSS `color-scheme: dark light` + adaptive tokens |
+| API Admin Protection | ✅ | `x-admin-token` enforced on sensitive endpoints |
+
+## Architecture
+
+- **apps/api**: Node HTTP API with provably-fair RNG, payment flows, AI economy orchestration, and realtime/tournament endpoints.
+- **apps/web**: Next-style route shell with casino pages and operations dashboards.
+- **packages/core**: RTP math, volatility, and VIP logic.
+- **infra**: Docker/Kubernetes/NGINX/PM2 deployment assets.
+- **tests**: Node test suite for core modules and server endpoints.
+
+## Stack
+
+- Node.js 20+
+- Native Node test runner
+- JavaScript/TypeScript route files
+- Prisma schema (PostgreSQL)
+- Redis-ready infra references
+- Docker + Kubernetes manifests
+
+## Setup Instructions
 
 ```bash
+npm install
+cp .env.example .env
 npm test
-npm run verify:metadata
-npm run verify:structure
+npm run lint
+npm run build
 npm run start:api
 ```
 
-## Key API Endpoints
+Deterministic dependency installs are pinned through `package-lock.json`.
+
+## Environment Variables
+
+Use `.env.example` as baseline. Important variables:
+
+- `NODE_ENV`, `PORT`
+- `JWT_ROTATION_SECRET`
+- `ADMIN_API_TOKEN`
+- `WEBHOOK_SIGNING_SECRET`
+- `DATABASE_URL`, `REDIS_URL`
+- `XENDIT_API_KEY`, `PAYMONGO_SECRET_KEY`, `DRAGONPAY_SECRET`
+- `NEXT_PUBLIC_ADMIN_DASHBOARD_TOKEN`
+- `NEXT_PUBLIC_API_BASE_URL`
+
+Production startup validates required secrets.
+
+## Release
+
+- Current stable target: **v1.0.0**
+- Release notes: [CHANGELOG.md](CHANGELOG.md)
+- First stable tag preparation: `git tag v1.0.0` (performed during release cut)
+
+## Deployment Guide
+
+### Local Development
+- `npm install`
+- configure `.env`
+- `npm run start:api`
+
+### Docker
+- Build API image from `infra/docker/Dockerfile.api`
+- Build web image from `infra/docker/Dockerfile.web`
+- Use `docker-compose.yml` for local orchestration.
+
+### Vercel
+- Deploy `apps/web` as frontend project.
+- Configure environment variables from `.env.example`.
+- Route API requests to deployed API base URL.
+
+### Netlify
+- Deploy web app directory as site root/build output.
+- Set same public env vars (`NEXT_PUBLIC_*`) and API base.
+
+Detailed notes: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+## Screenshots
+
+> Relative paths are under `docs/screenshots`.
+
+### Homepage
+![Homepage](docs/screenshots/homepage.png)
+
+### Gameplay Interface
+![Gameplay](docs/screenshots/gameplay-interface.png)
+
+### Wallet Connect Flow
+![Wallet Connect](docs/screenshots/wallet-connect.png)
+
+### User Dashboard
+![User Dashboard](docs/screenshots/user-dashboard.png)
+
+### Admin Dashboard
+![Admin Dashboard](docs/screenshots/admin-dashboard.png)
+
+### Responsive Mobile View
+![Mobile Responsive](docs/screenshots/mobile-view.png)
+
+### Settings/Profile
+![Settings Profile](docs/screenshots/settings-profile.png)
+
+### Transaction/Status
+![Transactions](docs/screenshots/transaction-status.png)
+
+## API Endpoints (selected)
 
 - `GET /health`
-- `GET /provably-fair/current`
 - `POST /provably-fair/spin`
-- `POST /provably-fair/verify`
-- `POST /provably-fair/rotate-seed` (requires `x-admin-token`)
-- `GET /rtp/profiles`
-- `POST /rtp/simulate`
 - `POST /payments/deposit`
-- `POST /payments/provider/select`
-- `POST /payments/withdraw`
-- `POST /payments/withdraw/approve` (requires `x-admin-token`)
-- `POST /payments/reconcile`
 - `POST /payments/route/intelligent`
 - `POST /payments/settlement/track`
 - `POST /payments/payout/orchestrate` (requires `x-admin-token`)
-- `GET /payments/queue` (requires `x-admin-token`)
-- `GET /jackpot/ticker`
-- `POST /security/token/rotate` (requires `x-admin-token`)
-- `POST /security/token/verify`
 - `POST /ai/economy/evaluate`
 - `POST /realtime/topology`
 - `POST /realtime/failover`
@@ -50,27 +144,31 @@ npm run start:api
 - `POST /tournaments/network/assign`
 - `GET /tournaments/network/status`
 
-Webhook signature verification expects the raw request body bytes/string (`sha256=<hex>`), not a parsed JSON object.
+## Security Notes
 
-## Security Baseline
+- timing-safe webhook signature checks
+- nonce replay protection
+- payload size limits
+- admin-token gate on sensitive routes
+- production environment secret validation
 
-- CSP and clickjacking protection headers.
-- Deterministic provably-fair verifier flow (server seed + client seed + nonce).
-- Nonce replay protection for spin requests.
-- Basic rate limiting for mutating routes.
-- Auto-spin burst abuse controls via session guard.
-- Rotating signed session token helper endpoints for ops/admin automation.
-- Client seeds are normalized and capped to 64 characters for deterministic hashing.
-- Input validation on payment and RNG routes.
-- Seed rotation includes versioned hash chaining in-process (persist to storage for multi-instance production use).
-- API runtime state is in-memory; deploy as a single API replica/instance unless shared state storage is added.
+## Roadmap
 
-## Testing
+- persistent distributed state for multi-instance API runtime
+- dedicated websocket gateway service
+- advanced anti-fraud model training + telemetry dashboards
+- full native mobile shells with haptic/gamepad controls
 
-Node test suite validates RTP calculations, VIP logic, provably fair verification, and payment behavior.
+## Contribution Guide
 
-## PR2 Production Math and Fintech Notes
+1. Create a branch.
+2. Keep changes scoped and production-safe.
+3. Run:
+   - `npm test`
+   - `npm run lint`
+   - `npm run build`
+4. Open PR with validation evidence.
 
-- `packages/core/src/rtp.js` now includes configurable RTP profiles, weighted probability matrices, deterministic large-spin simulation, payout distribution analytics, and volatility heatmap generation.
-- `apps/api/src/payments.js` now includes payment-provider failover selection, queue item generation, withdrawal lifecycle controls, fraud scoring, and transaction reconciliation helpers.
-- `apps/web/game/engine/features.js` includes deterministic feature logic for sticky wilds, walking wilds, mystery reveals, transformation events, gamble feature resolution, and respin triggers.
+## License
+
+MIT — see [LICENSE](LICENSE).

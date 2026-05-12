@@ -19,6 +19,7 @@ import { auditRtpProfile, createRtpProfile } from '../../../packages/core/src/rt
 import { economyTick } from './services/aiEconomy.js';
 import { TournamentNetwork } from './services/multiplayer.js';
 import { buildGatewayPlan, orchestrateTournamentRooms, websocketFailoverPlan } from './services/realtimeScaling.js';
+import { validateProductionEnvironment } from './env.js';
 
 const port = Number(process.env.PORT || 4000);
 const jackpot = new JackpotPool();
@@ -35,6 +36,7 @@ const withdrawals = new Map();
 const withdrawalOrder = [];
 const paymentHealth = { xendit: 'healthy', paymongo: 'healthy', dragonpay: 'healthy' };
 const tournamentNetwork = new TournamentNetwork(100);
+validateProductionEnvironment();
 let tokenVersion = 1;
 let tokenSecret = process.env.JWT_ROTATION_SECRET;
 if (!tokenSecret) {

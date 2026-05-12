@@ -30,6 +30,7 @@ import {
 } from '../apps/api/src/payments.js';
 import { JackpotPool } from '../apps/api/src/jackpot.js';
 import { issueRotatingToken, RateLimiter } from '../apps/api/src/security.js';
+import { validateProductionEnvironment } from '../apps/api/src/env.js';
 
 test('RTP estimator calculates expected return', () => {
   const spins = [
@@ -240,4 +241,21 @@ test('security helpers validate ttl and prune stale identities', async () => {
   await new Promise((resolve) => setTimeout(resolve, 10));
   limiter.pruneStale();
   assert.equal(limiter.hits.has('ip-1'), false);
+});
+
+test('production environment validation enforces required secrets only in production', () => {
+  assert.equal(validateProductionEnvironment({ NODE_ENV: 'test' }).valid, true);
+  assert.throws(
+    () => validateProductionEnvironment({ NODE_ENV: 'production', JWT_ROTATION_SECRET: '1', ADMIN_API_TOKEN: '' }),
+    /Missing required production environment variables/
+  );
+  assert.equal(
+    validateProductionEnvironment({
+      NODE_ENV: 'production',
+      JWT_ROTATION_SECRET: '1',
+      ADMIN_API_TOKEN: '2',
+      WEBHOOK_SIGNING_SECRET: '3'
+    }).valid,
+    true
+  );
 });
