@@ -21,12 +21,16 @@ import {
   choosePaymentProvider,
   createDeposit,
   createWithdrawalRequest,
+  orchestratePayoutQueue,
   reconcileTransactions,
+  routePaymentIntent,
   retryableStatus,
+  trackSettlementWindow,
   validateWebhookSignature
 } from '../apps/api/src/payments.js';
 import { JackpotPool } from '../apps/api/src/jackpot.js';
 import { issueRotatingToken, RateLimiter } from '../apps/api/src/security.js';
+import { validateProductionEnvironment } from '../apps/api/src/env.js';
 
 test('RTP estimator calculates expected return', () => {
   const spins = [
@@ -191,6 +195,51 @@ test('payment failover, withdrawal approval, fraud scoring, and reconciliation w
   );
 });
 
+test('intelligent routing, settlement tracking, and payout orchestration are deterministic', () => {
+  const route = routePaymentIntent({
+    method: 'gcash',
+    amount: 15000,
+    health: { xendit: 'healthy', paymongo: 'healthy', dragonpay: 'down' },
+    providerMetrics: {
+      xendit: { successRate: 0.97, latencyMs: 220, feeBps: 200, liquidity: 0.9 },
+      paymongo: { successRate: 0.9, latencyMs: 180, feeBps: 240, liquidity: 0.7 }
+    }
+  });
+  assert.equal(route.provider, 'xendit');
+  assert.ok(route.score > 0);
+
+  const now = Date.now();
+  const settlement = trackSettlementWindow({
+    transactions: [
+      { id: 'a', status: 'settled', amount: 120, ts: now - 3_000 },
+      { id: 'b', status: 'pending', amount: 70, ts: now - 2_000 },
+      { id: 'c', status: 'settled', amount: 30, ts: now - 90_000_000 }
+    ],
+    windowMinutes: 60
+  });
+  assert.equal(settlement.total, 2);
+  assert.equal(settlement.settledVolume, 120);
+
+  const payout = orchestratePayoutQueue({
+    requests: [
+      { id: 'wd1', amount: 100, riskScore: 0.2 },
+      { id: 'wd2', amount: 400, riskScore: 0.9 },
+      { id: 'wd3', amount: 250, riskScore: 0.4 }
+    ],
+    availableLiquidity: 300
+  });
+  assert.equal(payout.approved.length, 1);
+  assert.equal(payout.queued.length, 2);
+
+  const invalidLiquidity = orchestratePayoutQueue({
+    requests: [{ id: 'wd4', amount: 50, riskScore: 0.1 }],
+    availableLiquidity: 'not-a-number'
+  });
+  assert.equal(invalidLiquidity.approved.length, 0);
+  assert.equal(invalidLiquidity.queued.length, 1);
+  assert.equal(invalidLiquidity.remainingLiquidity, 0);
+});
+
 test('security helpers validate ttl and prune stale identities', async () => {
   assert.throws(() => issueRotatingToken({ subject: 'u1', secret: 's1', ttlSec: 0 }), /ttlSec/);
   assert.throws(() => issueRotatingToken({ subject: 'u1', secret: 's1', ttlSec: 999999 }), /ttlSec/);
@@ -200,4 +249,21 @@ test('security helpers validate ttl and prune stale identities', async () => {
   await new Promise((resolve) => setTimeout(resolve, 10));
   limiter.pruneStale();
   assert.equal(limiter.hits.has('ip-1'), false);
+});
+
+test('production environment validation enforces required secrets only in production', () => {
+  assert.equal(validateProductionEnvironment({ NODE_ENV: 'test' }).valid, true);
+  assert.throws(
+    () => validateProductionEnvironment({ NODE_ENV: 'production', JWT_ROTATION_SECRET: '1', ADMIN_API_TOKEN: '' }),
+    /Missing required production environment variables/
+  );
+  assert.equal(
+    validateProductionEnvironment({
+      NODE_ENV: 'production',
+      JWT_ROTATION_SECRET: '1',
+      ADMIN_API_TOKEN: '2',
+      WEBHOOK_SIGNING_SECRET: '3'
+    }).valid,
+    true
+  );
 });

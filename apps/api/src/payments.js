@@ -69,6 +69,48 @@ export function choosePaymentProvider({ method, preferredProvider, health = {} }
   return ranked[0];
 }
 
+export function routePaymentIntent({
+  method,
+  amount,
+  preferredProvider,
+  health = {},
+  providerMetrics = {}
+}) {
+  const selectedByAvailability = choosePaymentProvider({ method, preferredProvider, health });
+  const candidates = [...PROVIDERS].filter((provider) => PROVIDER_METHODS[provider].has(method) && health[provider] !== 'down');
+  const ranked = candidates
+    .map((provider) => {
+      const metrics = providerMetrics[provider] ?? {};
+      const successRate = Math.max(0, Math.min(1, Number(metrics.successRate ?? 0.9)));
+      const latencyMs = Math.max(1, Number(metrics.latencyMs ?? 250));
+      const feeBps = Math.max(0, Number(metrics.feeBps ?? 225));
+      const liquidity = Math.max(0, Math.min(1, Number(metrics.liquidity ?? 0.8)));
+      const healthScore = health[provider] === 'healthy' ? 1 : health[provider] === 'degraded' ? 0.65 : 0.4;
+      const amountPenalty = Math.min(0.2, Math.max(0, (Number(amount) || 0) / 1_000_000));
+      const score =
+        successRate * 0.42 +
+        liquidity * 0.2 +
+        healthScore * 0.2 +
+        (1 - Math.min(1, latencyMs / 1200)) * 0.1 +
+        (1 - Math.min(1, feeBps / 1000)) * 0.08 -
+        amountPenalty;
+      return { provider, score: Number(score.toFixed(4)), metrics: { successRate, latencyMs, feeBps, liquidity, health: health[provider] ?? 'unknown' } };
+    })
+    .sort((left, right) => right.score - left.score);
+
+  const top = ranked[0];
+  if (!top) {
+    return { provider: selectedByAvailability, fallbackOnly: true, score: 0, candidates: [] };
+  }
+
+  return {
+    provider: top.provider,
+    fallbackOnly: top.provider !== selectedByAvailability,
+    score: top.score,
+    candidates: ranked
+  };
+}
+
 export function createDepositQueueItem(deposit, attempt = 0) {
   if (!deposit?.id) throw new Error('deposit is required');
   const now = Date.now();
@@ -176,5 +218,55 @@ export function reconcileTransactions({ ledgerEntries, providerEntries }) {
       missingInProvider: missingInProvider.length,
       missingInLedger: missingInLedger.length
     }
+  };
+}
+
+export function trackSettlementWindow({ transactions = [], windowMinutes = 30 }) {
+  const now = Date.now();
+  const windowMs = Math.max(1, Number(windowMinutes) || 30) * 60_000;
+  const inWindow = transactions.filter((entry) => now - Number(entry.ts ?? now) <= windowMs);
+  const grouped = inWindow.reduce((acc, entry) => {
+    const status = String(entry.status ?? 'unknown');
+    acc[status] = (acc[status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const settledVolume = inWindow
+    .filter((entry) => String(entry.status) === 'settled')
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry.amount) || 0), 0);
+  return {
+    windowMinutes: windowMs / 60_000,
+    total: inWindow.length,
+    grouped,
+    settledVolume: Number(settledVolume.toFixed(2))
+  };
+}
+
+export function orchestratePayoutQueue({ requests = [], availableLiquidity = Infinity, maxBatch = 50 }) {
+  const liquidityValue = Number(availableLiquidity);
+  const normalizedLiquidity = Number.isFinite(liquidityValue) ? Math.max(0, liquidityValue) : 0;
+  const limit = Math.max(1, Number(maxBatch) || 50);
+  const sorted = [...requests]
+    .filter((entry) => entry?.id)
+    .sort((a, b) => (Number(b.riskScore) || 0) - (Number(a.riskScore) || 0) || (Number(a.amount) || 0) - (Number(b.amount) || 0));
+
+  let remainingLiquidity = normalizedLiquidity;
+  const approved = [];
+  const queued = [];
+  for (const request of sorted.slice(0, limit)) {
+    const amount = Math.max(0, Number(request.amount) || 0);
+    const riskScore = Math.max(0, Math.min(1, Number(request.riskScore) || 0));
+    const highRisk = riskScore >= 0.85;
+    if (highRisk || amount > remainingLiquidity) {
+      queued.push({ ...request, status: highRisk ? 'manual_review' : 'queued' });
+      continue;
+    }
+    remainingLiquidity -= amount;
+    approved.push({ ...request, status: 'approved' });
+  }
+
+  return {
+    approved,
+    queued,
+    remainingLiquidity: Number(remainingLiquidity.toFixed(2))
   };
 }

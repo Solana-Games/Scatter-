@@ -32,3 +32,30 @@ export function multiplierOverlayFrames(multiplier) {
   if (value >= 5) return 40;
   return 28;
 }
+
+export function reelTensionCurve({ reelIndex = 0, totalReels = 5, nearBonus = false }) {
+  const normalizedIndex = Math.max(0, Number(reelIndex) || 0);
+  const normalizedTotal = Math.max(1, Number(totalReels) || 5);
+  const base = 1 + normalizedIndex / normalizedTotal;
+  const bonusBoost = nearBonus ? 0.35 : 0;
+  return Number(Math.min(2.4, base + bonusBoost).toFixed(3));
+}
+
+export function cinematicCameraEffect(multiplier = 1) {
+  const value = Math.max(1, Number(multiplier) || 1);
+  return {
+    zoom: Number(Math.min(1.35, 1 + value / 100).toFixed(3)),
+    shake: Number(Math.min(1, value / 50).toFixed(3)),
+    chroma: value >= 25
+  };
+}
+
+export function adaptiveQualityProfile({ deviceTier = 'mid', batterySaver = false }) {
+  if (batterySaver) {
+    return { targetFps: 45, particles: 'low', shaderQuality: 'low' };
+  }
+  if (deviceTier === 'flagship') {
+    return { targetFps: 120, particles: 'ultra', shaderQuality: 'high' };
+  }
+  return { targetFps: 60, particles: 'medium', shaderQuality: 'medium' };
+}

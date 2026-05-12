@@ -39,4 +39,24 @@ export class ScatterScene {
       pulse: value >= 5
     };
   }
+
+  evaluateMegaWin({ payout, bet }) {
+    const normalizedBet = Math.max(1, Number(bet) || 1);
+    const ratio = Math.max(0, Number(payout) || 0) / normalizedBet;
+    return {
+      ratio: Number(ratio.toFixed(2)),
+      mega: ratio >= 50,
+      ultra: ratio >= 150,
+      fullscreenFx: ratio >= 100
+    };
+  }
+
+  environmentalPulse(intensity = 0) {
+    const normalized = Math.max(0, Math.min(1, Number(intensity) || 0));
+    return {
+      lighting: Number((0.5 + normalized * 0.5).toFixed(3)),
+      particleDensity: Number((0.2 + normalized * 0.8).toFixed(3)),
+      distortion: normalized >= 0.7
+    };
+  }
 }

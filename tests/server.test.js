@@ -132,3 +132,76 @@ test('token rotate and verify flow is functional', async () => {
   const verified = await verify.json();
   assert.equal(verified.valid, true);
 });
+
+test('pr3 economy, realtime, and payment orchestration endpoints respond', async () => {
+  const economy = await fetch(`${baseUrl}/ai/economy/evaluate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      daysSinceLastSession: 12,
+      sessions30d: 4,
+      avgSessionMinutes: 15,
+      depositTrend: -120,
+      supportTickets30d: 1,
+      lifetimeValue: 25000,
+      avgBet: 120,
+      activePlayers: 2300,
+      currentJackpotPool: 150000,
+      targetJackpotPool: 320000
+    })
+  });
+  assert.equal(economy.status, 200);
+  const economyPayload = await economy.json();
+  assert.equal(typeof economyPayload.segment, 'string');
+
+  const route = await fetch(`${baseUrl}/payments/route/intelligent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      method: 'gcash',
+      amount: 1200,
+      health: { xendit: 'healthy', paymongo: 'degraded', dragonpay: 'down' },
+      providerMetrics: {
+        xendit: { successRate: 0.96, latencyMs: 220, feeBps: 210, liquidity: 0.9 },
+        paymongo: { successRate: 0.9, latencyMs: 140, feeBps: 260, liquidity: 0.7 }
+      }
+    })
+  });
+  assert.equal(route.status, 200);
+
+  const payout = await fetch(`${baseUrl}/payments/payout/orchestrate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-admin-token': 'admin-secret' },
+    body: JSON.stringify({
+      availableLiquidity: 500,
+      requests: [
+        { id: 'wd-1', amount: 100, riskScore: 0.1 },
+        { id: 'wd-2', amount: 200, riskScore: 0.95 }
+      ]
+    })
+  });
+  assert.equal(payout.status, 200);
+
+  const topology = await fetch(`${baseUrl}/realtime/topology`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ regions: ['apac', 'eu'], activeSockets: 100000, maxSocketsPerGateway: 50000 })
+  });
+  assert.equal(topology.status, 200);
+  const topologyPayload = await topology.json();
+  assert.equal(topologyPayload.plan.length, 2);
+
+  const tournament = await fetch(`${baseUrl}/tournaments/orchestrate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      roomSize: 2,
+      players: [
+        { userId: 'u1', region: 'apac', latencyMs: 40 },
+        { userId: 'u2', region: 'apac', latencyMs: 50 },
+        { userId: 'u3', region: 'eu', latencyMs: 80 }
+      ]
+    })
+  });
+  assert.equal(tournament.status, 200);
+});
