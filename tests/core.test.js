@@ -230,6 +230,14 @@ test('intelligent routing, settlement tracking, and payout orchestration are det
   });
   assert.equal(payout.approved.length, 1);
   assert.equal(payout.queued.length, 2);
+
+  const invalidLiquidity = orchestratePayoutQueue({
+    requests: [{ id: 'wd4', amount: 50, riskScore: 0.1 }],
+    availableLiquidity: 'not-a-number'
+  });
+  assert.equal(invalidLiquidity.approved.length, 0);
+  assert.equal(invalidLiquidity.queued.length, 1);
+  assert.equal(invalidLiquidity.remainingLiquidity, 0);
 });
 
 test('security helpers validate ttl and prune stale identities', async () => {

@@ -5,8 +5,13 @@ const walletStats = [
   { label: 'Active tournaments', value: '3' }
 ];
 
-export default function DashboardPage({ searchParams }: { searchParams?: { wallet?: string } }) {
-  const wallet = searchParams?.wallet?.trim();
+type SearchParams = {
+  wallet?: string | string[];
+};
+
+export default function DashboardPage({ searchParams }: { searchParams?: SearchParams }) {
+  const walletParam = Array.isArray(searchParams?.wallet) ? searchParams?.wallet[0] : searchParams?.wallet;
+  const wallet = walletParam?.trim();
   if (!wallet) {
     return (
       <main className="shell">

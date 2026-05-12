@@ -29,7 +29,7 @@ export class TournamentNetwork {
 
   assignPlayer({ userId, region = 'global', score = 0 }) {
     if (typeof userId !== 'string' || !userId.trim()) throw new Error('userId is required');
-    const normalizedRegion = region.trim().toLowerCase();
+    const normalizedRegion = typeof region === 'string' && region.trim() ? region.trim().toLowerCase() : 'global';
     const roomList = this.rooms.get(normalizedRegion) ?? [];
     let room = roomList.find((entry) => entry.players.size < this.roomSize);
     if (!room) {

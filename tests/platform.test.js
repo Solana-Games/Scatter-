@@ -76,7 +76,9 @@ test('multiplayer leaderboard sorts by score', () => {
   network.assignPlayer({ userId: 'u1', region: 'apac' });
   network.assignPlayer({ userId: 'u2', region: 'apac' });
   network.assignPlayer({ userId: 'u3', region: 'apac' });
+  const fallbackRegion = network.assignPlayer({ userId: 'u4', region: null });
   assert.equal(network.networkStatus().apac.rooms, 2);
+  assert.equal(fallbackRegion.region, 'global');
 });
 
 test('slot feature helpers support sticky and mystery mechanics', () => {

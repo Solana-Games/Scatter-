@@ -242,7 +242,8 @@ export function trackSettlementWindow({ transactions = [], windowMinutes = 30 })
 }
 
 export function orchestratePayoutQueue({ requests = [], availableLiquidity = Infinity, maxBatch = 50 }) {
-  const normalizedLiquidity = Math.max(0, Number(availableLiquidity));
+  const liquidityValue = Number(availableLiquidity);
+  const normalizedLiquidity = Number.isFinite(liquidityValue) ? Math.max(0, liquidityValue) : 0;
   const limit = Math.max(1, Number(maxBatch) || 50);
   const sorted = [...requests]
     .filter((entry) => entry?.id)

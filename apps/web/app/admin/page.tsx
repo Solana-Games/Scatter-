@@ -6,15 +6,24 @@ const widgets = [
   { title: 'Payment approval queue', status: 'healthy' }
 ];
 
-export default function AdminPage({ searchParams }: { searchParams?: { token?: string } }) {
-  const expected = process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_TOKEN || 'admin-demo';
-  const granted = searchParams?.token === expected;
+type SearchParams = {
+  token?: string | string[];
+};
+
+export default function AdminPage({ searchParams }: { searchParams?: SearchParams }) {
+  const expected = process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_TOKEN?.trim();
+  const token = Array.isArray(searchParams?.token) ? searchParams?.token[0] : searchParams?.token;
+  const granted = Boolean(expected && token === expected);
   if (!granted) {
     return (
       <main className="shell">
         <h1 className="heading">Admin Dashboard Protected</h1>
         <section className="panel">
-          <p>Access denied. Provide an admin access token in query params: <code>?token=...</code></p>
+          <p>
+            {expected
+              ? <>Access denied. Provide an admin access token in query params: <code>?token=...</code></>
+              : <>Access denied. Admin dashboard token is not configured.</>}
+          </p>
           <p className="muted">Server-side admin endpoints still require <code>x-admin-token</code>.</p>
         </section>
       </main>
